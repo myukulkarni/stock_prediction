@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Login{% endblock %}
+{% block content %}
+
+<!-- SweetAlert2 CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<!-- Custom animation styles -->
+<style>
+  @keyframes slideInLeft {
+    0% {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInRight {
+    0% {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-slide-in-left {
+    animation: slideInLeft 1s ease-out forwards;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 1s ease-out forwards;
+  }
+</style>
+
+<div class="min-h-screen flex">
+  <!-- Left side with animation/image -->
+  <div class="w-1/2 bg-purple-100 flex items-center justify-center">
+    <img src="{% static 'app/assets/login2.png' %}" alt="Animated Visual"
+         class="w-[90%] max-w-[550px] rounded-lg transform translate-x-4 opacity-0 animate-slide-in-left" />
+  </div>
+
+  <!-- Right side login form -->
+  <div class="w-1/2 flex items-center justify-center bg-purple-100">
+    <form id="login-form" class="w-[80%] max-w-[400px] opacity-0 animate-slide-in-right -ml-10">
+      <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Login</h2>
+
+      <!-- Username -->
+      <div class="mb-4 relative">
+        <input type="text" id="username" placeholder="Username"
+          class="w-full px-4 py-2 border-b-2 border-gray-400 text-sm focus:outline-none focus:border-purple-500 placeholder-gray-600" />
+      </div>
+
+      <!-- Password -->
+      <div class="mb-4 relative">
+        <input type="password" id="password" placeholder="Password"
+          class="w-full px-4 py-2 border-b-2 border-gray-400 text-sm focus:outline-none focus:border-purple-500 placeholder-gray-600" />
+      </div>
+
+      <!-- Submit -->
+      <button type="submit"
+  class="w-full bg-gradient-to-tr from-pink-400 via-fuchsia-500 to-purple-600 hover:bg-purple-200 text-white py-2 rounded transition text-sm font-semibold">
+  Submit
+</button>
+
+
+      <!-- Extras -->
+      <div class="mt-4 text-sm text-center">
+        <p>Don't have an account?
+          <a href="{% url 'register-page' %}" class="text-indigo-700 hover:underline block mb-2">Register</a>
+        </p>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- JS for login -->
+<script>
+  document.getElementById('login-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+
+    const response = await fetch('/app/v1/token/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      localStorage.setItem('access', data.access);
+      localStorage.setItem('refresh', data.refresh);
+
+      // ✅ SweetAlert2 success message
+      Swal.fire({
+        title: 'Login Successful!',
+        text: 'You will be redirected shortly...',
+        icon: 'success',
+        confirmButtonColor: '#6b21a8',
+        timer: 2000,
+        showConfirmButton: false
+      });
+
+      setTimeout(() => {
+        window.location.href = "{% url 'dashboard' %}";
+      }, 2000);
+    } else {
+      // ❌ SweetAlert2 error message
+      Swal.fire({
+        title: 'Login Failed',
+        text: 'Invalid username or password!',
+        icon: 'error',
+        confirmButtonColor: '#d33'
+      });
+    }
+  });
+</script>
+
+{% endblock %}

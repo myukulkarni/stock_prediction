@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Success{% endblock %}
+{% block content %}
+<div class="text-center py-20">
+  <h1 class="text-3xl font-bold text-green-600">✅ Payment Successful</h1>
+  <p class="mt-4 text-gray-700">Your subscription is now active. Enjoy Pro features!</p>
+  <a href="{% url 'dashboard' %}" class="mt-6 inline-block text-purple-600 underline">Go to Dashboard</a>
+</div>
+{% endblock %}

@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<!-- SweetAlert2 CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+  @keyframes slideFade {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: slideFade 1s ease-out forwards;
+  }
+
+  .bg-theme {
+    background: linear-gradient(to bottom right, #f5e8ff, #e4d3ff);
+  }
+
+  .telegram-float {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #0088cc;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 9999px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    animation: slideFade 1.2s ease-out forwards;
+    transition: background-color 0.3s;
+    text-decoration: none;
+  }
+
+  .telegram-float:hover {
+    background-color: #007ab8;
+  }
+
+  .telegram-icon {
+    width: 20px;
+    height: 20px;
+  }
+</style>
+
+<div class="min-h-screen bg-theme px-6 py-10 animate-fade-in">
+  <div class="max-w-5xl mx-auto bg-white rounded-lg shadow-lg p-8">
+    <h2 class="text-3xl font-bold text-purple-700 mb-6 text-center">📈 Predict Stock Price</h2>
+
+    <form id="predict-form" class="flex flex-col md:flex-row gap-4 items-center justify-center mb-8">
+      <input id="ticker" type="text" name="ticker" placeholder="Enter stock ticker (e.g. TSLA)"
+        class="px-4 py-2 border border-purple-300 rounded w-full md:w-1/2 focus:outline-none focus:border-purple-500"
+        required />
+      <button type="submit" id="predict-btn"
+        class="relative flex items-center justify-center gap-2 bg-gradient-to-tr from-pink-400 via-fuchsia-500 to-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded transition text-sm font-semibold">
+        <span id="predict-text">Predict</span>
+        <svg id="loader" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg>
+      </button>
+    </form>
+
+    <div id="result" class="hidden text-center">
+      <h3 class="text-xl font-semibold text-green-600 mb-6">
+        Next Day Predicted Price: ₹ <span id="price"></span>
+      </h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <img id="chart1" src="" alt="Chart 1" class="border rounded w-full h-72 object-contain shadow-md" />
+        <img id="chart2" src="" alt="Chart 2" class="border rounded w-full h-72 object-contain shadow-md" />
+      </div>
+    </div>
+
+    <hr class="my-10">
+
+    <h2 class="text-2xl font-bold text-purple-700 mb-4">📋 Past Predictions</h2>
+    <div class="overflow-x-auto">
+      <table class="table-auto w-full border border-purple-200">
+        <thead class="bg-purple-100">
+          <tr class="text-left text-sm text-gray-700">
+            <th class="px-4 py-2 border">Ticker</th>
+            <th class="px-4 py-2 border">Predicted Price</th>
+            <th class="px-4 py-2 border">Date</th>
+            <th class="px-4 py-2 border">Action</th>
+          </tr>
+        </thead>
+        <tbody id="prediction-rows" class="text-sm text-gray-800">
+          <!-- Filled dynamically -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="text-center mt-8">
+      <button onclick="logout()"
+        class="text-sm text-red-600 underline hover:text-red-800 transition font-medium">Logout</button>
+    </div>
+
+    {% if not request.user.profile.is_pro %}
+    <div class="text-center mt-10">
+      <a href="{% url 'subscribe' %}" class="inline-block bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded text-sm font-semibold transition">
+        🚀 Upgrade to Pro - ₹199/month
+      </a>
+      <p class="text-sm text-gray-500 mt-2">Unlimited predictions, Telegram stats & priority access</p>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<!-- 🟣 Floating Telegram Icon Button -->
+<a id="telegram-link" href="#" class="telegram-float" onclick="linkTelegram(event)">
+  <img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" alt="Telegram" class="telegram-icon" />
+  <span class="hidden md:inline text-sm font-medium">Ask Telegram Bot</span>
+</a>
+
+<!-- Modal for charts -->
+<div id="chartModal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-60 flex items-center justify-center">
+  <div class="bg-white p-6 rounded-lg shadow-xl max-w-4xl w-full relative">
+    <button onclick="closeModal()" class="absolute top-2 right-3 text-xl font-bold text-red-500">×</button>
+    <h3 class="text-xl font-semibold mb-4 text-center">Prediction Charts</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <img id="modal-chart1" src="" class="w-full rounded border h-72 object-contain" />
+      <img id="modal-chart2" src="" class="w-full rounded border h-72 object-contain" />
+    </div>
+  </div>
+</div>
+
+<script>
+  async function refreshAccessToken() {
+    const refresh = localStorage.getItem('refresh');
+    if (!refresh) return null;
+
+    try {
+      const res = await fetch('/app/v1/token/refresh/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('access', data.access);
+        return data.access;
+      } else {
+        localStorage.clear();
+        return null;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  async function authFetch(url, options = {}) {
+    let access = localStorage.getItem('access');
+    if (!options.headers) options.headers = {};
+    options.headers['Authorization'] = 'Bearer ' + access;
+
+    let res = await fetch(url, options);
+    if (res.status === 401) {
+      const newAccess = await refreshAccessToken();
+      if (newAccess) {
+        options.headers['Authorization'] = 'Bearer ' + newAccess;
+        res = await fetch(url, options);
+      }
+    }
+
+    return res;
+  }
+
+  const accessToken = localStorage.getItem('access');
+  if (!accessToken) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Please Login First',
+      showConfirmButton: false,
+      timer: 1500
+    });
+    window.location.href = "{% url 'login-page' %}";
+  }
+
+  document.getElementById("predict-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const btn = document.getElementById("predict-btn");
+    const text = document.getElementById("predict-text");
+    const loader = document.getElementById("loader");
+
+    text.classList.add("hidden");
+    loader.classList.remove("hidden");
+
+    const ticker = document.getElementById("ticker").value.toUpperCase();
+
+    try {
+      const res = await authFetch("/app/v1/predict/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker })
+      });
+
+      const result = await res.json();
+
+      if (res.ok) {
+        if (!result.chart_history || !result.chart_prediction) {
+          throw new Error("Chart paths are missing.");
+        }
+
+        document.getElementById("price").innerText = result.predicted_price.toFixed(2);
+        document.getElementById("chart1").src = '/media/' + result.chart_history;
+        document.getElementById("chart2").src = '/media/' + result.chart_prediction;
+        document.getElementById("result").classList.remove("hidden");
+        fetchPredictions();
+      } else {
+        Swal.fire({
+          title: 'Prediction Failed',
+          text: result.error || "Try again later.",
+          icon: 'error'
+        });
+      }
+    } catch (err) {
+      Swal.fire({
+        title: 'Error',
+        text: err.message,
+        icon: 'error'
+      });
+    } finally {
+      text.classList.remove("hidden");
+      loader.classList.add("hidden");
+    }
+  });
+
+  async function fetchPredictions() {
+    const res = await authFetch("/app/v1/predictions/", {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    const data = await res.json();
+    const table = document.getElementById("prediction-rows");
+    table.innerHTML = "";
+
+    data.forEach(item => {
+      const row = `
+        <tr>
+          <td class="px-4 py-2 border">${item.ticker}</td>
+          <td class="px-4 py-2 border">₹ ${item.predicted_price.toFixed(2)}</td>
+          <td class="px-4 py-2 border">${new Date(item.created_at).toLocaleDateString()}</td>
+          <td class="px-4 py-2 border">
+            <button onclick="showModal('${item.chart_history}', '${item.chart_prediction}')" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm">View</button>
+          </td>
+        </tr>
+      `;
+      table.insertAdjacentHTML("beforeend", row);
+    });
+  }
+
+  function showModal(chart1, chart2) {
+    if (!chart1 || !chart2) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Chart Not Found',
+        text: 'One or both chart paths are missing.'
+      });
+      return;
+    }
+
+    document.getElementById("modal-chart1").src = "/media/" + chart1;
+    document.getElementById("modal-chart2").src = "/media/" + chart2;
+    document.getElementById("chartModal").classList.remove("hidden");
+  }
+
+  function closeModal() {
+    document.getElementById("chartModal").classList.add("hidden");
+  }
+
+  function logout() {
+    localStorage.clear();
+    window.location.href = "{% url 'login-page' %}";
+  }
+
+  fetchPredictions();
+
+  async function linkTelegram(event) {
+    event.preventDefault();
+
+    try {
+      const res = await authFetch("/app/v1/link-telegram/", {
+        method: "GET",
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.url) {
+        window.open(data.url, "_blank");
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error linking Telegram',
+          text: data.detail || "Something went wrong.",
+        });
+      }
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Network Error',
+        text: err.message || "Failed to connect.",
+      });
+    }
+  }
+</script>
+
+{% endblock %}

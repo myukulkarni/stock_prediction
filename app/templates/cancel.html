@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Cancelled{% endblock %}
+{% block content %}
+<div class="text-center py-20">
+  <h1 class="text-3xl font-bold text-red-500">❌ Payment Cancelled</h1>
+  <p class="mt-4 text-gray-700">Your subscription was not completed.</p>
+  <a href="{% url 'subscribe' %}" class="mt-6 inline-block text-purple-600 underline">Try Again</a>
+</div>
+{% endblock %}
